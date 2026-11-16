@@ -1,1 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Live das Baratas</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1a0f2e; overflow: hidden; }
+  canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let W, H;
+function resize() { W = cv.width = innerWidth; H = cv.height = innerHeight; }
+addEventListener('resize', resize); resize();
 
+const MAX = 120;
+const roaches = new Map();
+const floaters = [];
+
+function getRoach(u) {
+  let r = roaches.get(u.id);
+  if (!r) {
+    r = { id: u.id, name: u.name || u.id, x: Math.random() * W, y: H * 0.3 + Math.random() * H * 0.6,
+          tx: 0, ty: 0, t: Math.random() * 6, big: 0, say: '', sayT: 0, img: null };
+    r.tx = r.x; r.ty = r.y;
+    roaches.set(u.id, r);
+    if (roaches.size > MAX) roaches.delete(roaches.keys().next().value);
+  }
+  if (u.pic && !r.img) {
+    const im = new Image();
+    im.referrerPolicy = 'no-referrer';
+    im.onload = () => { r.img = im; };
+    im.src = u.pic;
+  }
+  return r;
+}
+
+function handle(m) {
+  const r = getRoach(m);
+  if (m.t === 'chat') { r.say = m.text; r.sayT = 240; }
+  if (m.t === 'gift') {
+    r.big = 400;
+    for (let i = 0; i < 8; i++)
+      floaters.push({ x: r.x, y: r.y, vx: (Math.random() - .5) * 3, vy: -1 - Math.random() * 2, e: /rose|rosa/i.test(m.gift) ? '🌹' : '🎁', l: 120 });
+  }
+}
+
+if (new URLSearchParams(location.search).has('demo')) {
+  let n = 0;
+  setInterval(() => {
+    n++;
+    const m = { id: 'demo' + n, name: 'Pessoa ' + n, pic: '' };
+    handle({ ...m, t: 'chat', text: ['entrar', 'baila comigo', 'salve!'][n % 3] });
+    if (n % 4 === 0) handle({ ...m, t: 'gift', gift: 'Rose' });
+  }, 700);
+} else {
+  const es = new EventSource('/events');
+  es.onmessage = (e) => handle(JSON.parse(e.data));
+}
+
+function draw() {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#2b1055'); g.addColorStop(1, '#7a2b6b');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.font = '700 ' + Math.max(22, W * 0.07) + 'px sans-serif';
+  ctx.textAlign = 'center'; ctx.fillStyle = '#ffd966';
+  ctx.fillText('🪳 BARATA CLUB 🪳', W / 2, H * 0.08);
+
+  const list = [...roaches.values()].sort((a, b) => a.y - b.y);
+  for (const r of list) {
+    r.t += 0.1;
+    if (Math.hypot(r.tx - r.x, r.ty - r.y) < 5) {
+      r.tx = Math.random() * W; r.ty = H * 0.2 + Math.random() * H * 0.75;
+    }
+    r.x += (r.tx - r.x) * 0.01; r.y += (r.ty - r.y) * 0.01;
+    if (r.big > 0) r.big--;
+    if (r.sayT > 0) r.sayT--;
+    const s = r.big > 0 ? 1.6 : 1;
+    const bounce = Math.sin(r.t * 2) * 5;
+    const by = r.y + bounce;
+    ctx.font = 44 * s + 'px sans-serif';
+    ctx.fillText('🪳', r.x, by);
+    const R = 20 * s, cy = by - 52 * s;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(r.x, cy, R, 0, 7); ctx.clip();
+    if (r.img) ctx.drawImage(r.img, r.x - R, cy - R, R * 2, R * 2);
+    else { ctx.fillStyle = '#' + ((r.id.length * 99991) % 0xffffff).toString(16).padStart(6, '0'); ctx.fillRect(r.x - R, cy - R, R * 2, R * 2); }
+    ctx.restore();
+    ctx.lineWidth = 2; ctx.strokeStyle = r.big > 0 ? '#ffd966' : '#fff';
+    ctx.beginPath(); ctx.arc(r.x, cy, R, 0, 7); ctx.stroke();
+    ctx.font = '12px sans-serif'; ctx.fillStyle = '#fff';
+    ctx.fillText(r.name.slice(0, 14), r.x, by + 16);
+    if (r.sayT > 0) {
+      ctx.font = '14px sans-serif';
+      const t = r.say.slice(0, 28), w = ctx.measureText(t).width + 14;
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.fillRect(r.x - w / 2, cy - R - 30, w, 22);
+      ctx.fillStyle = '#222'; ctx.fillText(t, r.x, cy - R - 14);
+    }
+  }
+  for (let i = floaters.length - 1; i >= 0; i--) {
+    const f = floaters[i]; f.x += f.vx; f.y += f.vy; f.l--;
+    ctx.globalAlpha = Math.max(0, f.l / 120); ctx.font = '30px sans-serif';
+    ctx.fillText(f.e, f.x, f.y); ctx.globalAlpha = 1;
+    if (f.l <= 0) floaters.splice(i, 1);
+  }
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+</body>
+</html>
