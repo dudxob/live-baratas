@@ -49,7 +49,7 @@ function start() {
     console.log('Falta definir TIKTOK_USER (seu @ do TikTok)');
     return;
   }
-  const c = new TikTokLiveConnection(USER);
+  const c = new TikTokLiveConnection(USER, {});
   c.on('chat', (d) => send({ t: 'chat', text: d.comment, ...who(d) }));
   c.on('member', (d) => send({ t: 'join', ...who(d) }));
   c.on('gift', (d) =>
