@@ -25,7 +25,7 @@ const floaters = [];
 function getRoach(u) {
   let r = roaches.get(u.id);
   if (!r) {
-    r = { id: u.id, name: u.name || u.id, x: Math.random() * W, y: H * 0.3 + Math.random() * H * 0.6,
+    r = { id: u.id, name: u.name || u.id, x: Math.random() * W, y: H * 0.35 + Math.random() * H * 0.6,
           tx: 0, ty: 0, t: Math.random() * 6, big: 0, say: '', sayT: 0, img: null };
     r.tx = r.x; r.ty = r.y;
     roaches.set(u.id, r);
@@ -41,9 +41,14 @@ function getRoach(u) {
 }
 
 function handle(m) {
-  const r = getRoach(m);
-  if (m.t === 'chat') { r.say = m.text; r.sayT = 240; }
+  if (m.t === 'chat') {
+    const r = roaches.get(m.id);
+    if (!r) return;
+    r.say = m.text; r.sayT = 240;
+    return;
+  }
   if (m.t === 'gift') {
+    const r = getRoach(m);
     r.big = 400;
     for (let i = 0; i < 8; i++)
       floaters.push({ x: r.x, y: r.y, vx: (Math.random() - .5) * 3, vy: -1 - Math.random() * 2, e: /rose|rosa/i.test(m.gift) ? '🌹' : '🎁', l: 120 });
@@ -55,27 +60,67 @@ if (new URLSearchParams(location.search).has('demo')) {
   setInterval(() => {
     n++;
     const m = { id: 'demo' + n, name: 'Pessoa ' + n, pic: '' };
-    handle({ ...m, t: 'chat', text: ['entrar', 'baila comigo', 'salve!'][n % 3] });
-    if (n % 4 === 0) handle({ ...m, t: 'gift', gift: 'Rose' });
-  }, 700);
+    handle({ ...m, t: 'gift', gift: 'Rose' });
+    setTimeout(() => handle({ ...m, t: 'chat', text: 'baila comigo' }), 1500);
+  }, 900);
 } else {
   const es = new EventSource('/events');
   es.onmessage = (e) => handle(JSON.parse(e.data));
+}
+
+function drawRoach(x, y, s, t) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  ctx.strokeStyle = '#3a200c';
+  ctx.lineWidth = 2;
+  for (let i = -1; i <= 1; i++) {
+    const w = Math.sin(t * 3 + i) * 4;
+    ctx.beginPath();
+    ctx.moveTo(-8, i * 8); ctx.lineTo(-22, i * 8 + w);
+    ctx.moveTo(8, i * 8); ctx.lineTo(22, i * 8 - w);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#8a4b1f';
+  ctx.beginPath(); ctx.ellipse(0, 4, 12, 20, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#b8742f';
+  ctx.beginPath(); ctx.ellipse(0, 2, 4, 14, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = '#5c3010';
+  ctx.beginPath(); ctx.arc(0, -18, 7, 0, 7); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-3, -24); ctx.lineTo(-10, -36);
+  ctx.moveTo(3, -24); ctx.lineTo(10, -36);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPanel() {
+  const w = Math.min(W * 0.92, 520), x = (W - w) / 2, y = H * 0.12, h = 74;
+  ctx.fillStyle = 'rgba(10,5,30,.85)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = '#ff5fd2'; ctx.lineWidth = 3;
+  ctx.strokeRect(x, y, w, h);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffd966'; ctx.font = '700 18px sans-serif';
+  ctx.fillText('COMO ENTRAR NA PISTA', W / 2, y + 28);
+  ctx.fillStyle = '#fff'; ctx.font = '16px sans-serif';
+  ctx.fillText('🌹 Mande uma rosa ou presente e sua foto entra!', W / 2, y + 54);
 }
 
 function draw() {
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, '#2b1055'); g.addColorStop(1, '#7a2b6b');
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  ctx.font = '700 ' + Math.max(22, W * 0.07) + 'px sans-serif';
+  ctx.font = '700 ' + Math.max(22, W * 0.05) + 'px sans-serif';
   ctx.textAlign = 'center'; ctx.fillStyle = '#ffd966';
-  ctx.fillText('🪳 BARATA CLUB 🪳', W / 2, H * 0.08);
+  ctx.fillText('BARATA CLUB', W / 2, H * 0.08);
+  drawPanel();
 
   const list = [...roaches.values()].sort((a, b) => a.y - b.y);
   for (const r of list) {
     r.t += 0.1;
     if (Math.hypot(r.tx - r.x, r.ty - r.y) < 5) {
-      r.tx = Math.random() * W; r.ty = H * 0.2 + Math.random() * H * 0.75;
+      r.tx = Math.random() * W; r.ty = H * 0.35 + Math.random() * H * 0.6;
     }
     r.x += (r.tx - r.x) * 0.01; r.y += (r.ty - r.y) * 0.01;
     if (r.big > 0) r.big--;
@@ -83,9 +128,8 @@ function draw() {
     const s = r.big > 0 ? 1.6 : 1;
     const bounce = Math.sin(r.t * 2) * 5;
     const by = r.y + bounce;
-    ctx.font = 44 * s + 'px sans-serif';
-    ctx.fillText('🪳', r.x, by);
-    const R = 20 * s, cy = by - 52 * s;
+    drawRoach(r.x, by, s, r.t);
+    const R = 20 * s, cy = by - 58 * s;
     ctx.save();
     ctx.beginPath(); ctx.arc(r.x, cy, R, 0, 7); ctx.clip();
     if (r.img) ctx.drawImage(r.img, r.x - R, cy - R, R * 2, R * 2);
@@ -94,7 +138,7 @@ function draw() {
     ctx.lineWidth = 2; ctx.strokeStyle = r.big > 0 ? '#ffd966' : '#fff';
     ctx.beginPath(); ctx.arc(r.x, cy, R, 0, 7); ctx.stroke();
     ctx.font = '12px sans-serif'; ctx.fillStyle = '#fff';
-    ctx.fillText(r.name.slice(0, 14), r.x, by + 16);
+    ctx.fillText(r.name.slice(0, 14), r.x, by + 40 * s);
     if (r.sayT > 0) {
       ctx.font = '14px sans-serif';
       const t = r.say.slice(0, 28), w = ctx.measureText(t).width + 14;
